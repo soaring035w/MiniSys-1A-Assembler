@@ -1,0 +1,21 @@
+#pragma once
+#include <bitset>
+#include <cassert>
+#include <cstdint>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <regex>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "Data.h"
+#include "Error.h"
+#include "Instruction.h"
+#include "Output.h"
+#include "Process.h"
+#include "Register.h"
+#include "Utility.h"
+#include "doAssemble.h"
