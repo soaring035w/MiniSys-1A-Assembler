@@ -35,7 +35,9 @@ std::regex Macro_format_regex("^(mov|push|pop|nop)", std::regex::icase);
 MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                                     const std::string& assembly,
                                     UnsolvedSymbolMap& unsolved_symbol_map,
-                                    MachineCodeIt& machine_code_it) {
+                                    MachineCodeIt& machine_code_it,
+                                    unsigned int& cur_address,
+                                    Instruction* cur_instruction) {
 
     std::string op1, op2, op3;
     GetOperand(assembly, op1, op2, op3);
@@ -56,8 +58,8 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                     "OR",
                     "OR " + op1 + ", $0, " + op2,
                     unsolved_symbol_map,
-                    machine_code_it
-                );
+                    machine_code_it,
+                    cur_instruction);
             }
 
             // mov r1, offset(rs) → lw r1, offset(rs)
@@ -67,8 +69,8 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                     "LW",
                     "LW " + op1 + ", " + op2,
                     unsolved_symbol_map,
-                    machine_code_it
-                );
+                    machine_code_it,
+                    cur_instruction);
             }
 
             // mov offset(rs), r2 → sw r2, offset(rs)
@@ -78,8 +80,8 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                     "SW",
                     "SW " + op2 + ", " + op1,
                     unsolved_symbol_map,
-                    machine_code_it
-                );
+                    machine_code_it,
+                    cur_instruction);
             }
 
             // mov r1, imm(symbol)
@@ -110,7 +112,8 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                         "LUI",
                         "LUI " + op1 + ", " + std::to_string(number >> 16),
                         unsolved_symbol_map,
-                        machine_code_it
+                        machine_code_it,
+                        cur_instruction
                     );
 
                     // 低 16 bit
@@ -119,7 +122,8 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                         "ORI " + op1 + ", " + op1 + ", " +
                             std::to_string(number % 0x10000),
                         unsolved_symbol_map,
-                        new_handel
+                        new_handel,
+                        cur_instruction
                     );
 
                     // 指令地址递增（因为新增了指令）
@@ -132,7 +136,8 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                         "ORI",
                         "ORI " + op1 + ", $0, " + op2,
                         unsolved_symbol_map,
-                        machine_code_it
+                        machine_code_it,
+                        cur_instruction
                     );
                 }
 
@@ -157,13 +162,15 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
             I_FormatInstruction("ADDI",
                                 "ADDI $sp, $sp, -4",
                                 unsolved_symbol_map,
-                                machine_code_it);
+                                machine_code_it,
+                                cur_instruction);
 
             // 第二条 SW 使用新 handle
             I_FormatInstruction("SW",
                                 "SW " + op1 + ", 0($sp)",
                                 unsolved_symbol_map,
-                                new_handel);
+                                new_handel,
+                                cur_instruction);
 
             cur_address += 4; // 新增一条指令
         } else {
@@ -183,12 +190,14 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
             I_FormatInstruction("LW",
                                 "LW " + op1 + ", 0($sp)",
                                 unsolved_symbol_map,
-                                machine_code_it);
+                                machine_code_it,
+                                cur_instruction);
 
             I_FormatInstruction("ADDI",
                                 "ADDI $sp, $sp, 4",
                                 unsolved_symbol_map,
-                                new_handel);
+                                new_handel,
+                                cur_instruction);
 
             cur_address += 4;
         } else {
@@ -203,7 +212,8 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
         R_FormatInstruction("SLL",
                             "SLL $0, $0, 0",
                             unsolved_symbol_map,
-                            machine_code_it);
+                            machine_code_it,
+                            cur_instruction);
     }
 
     
@@ -214,7 +224,7 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
         if (isMacro_Format(assembly))
             throw OperandError(mnemonic);
         else
-            throw UnkonwInstruction(mnemonic);
+            throw UnknownInstruction(mnemonic);
     }
 
     // 返回此宏指令展开后的第一条机器码

@@ -29,7 +29,8 @@ std::regex J_format_regex("^(j|jal)", std::regex::icase);
 MachineCode J_FormatInstruction(const std::string& mnemonic,
                                 const std::string& assembly,
                                 UnsolvedSymbolMap& unsolved_symbol_map,
-                                MachineCodeIt machine_code_it) {
+                                MachineCodeIt machine_code_it,
+                                Instruction* cur_instruction) {
 
     MachineCode& machine_code = *machine_code_it;
 
@@ -87,7 +88,7 @@ MachineCode J_FormatInstruction(const std::string& mnemonic,
 
     } else {
         // 助记符不属于 J 型指令
-        throw UnkonwInstruction(mnemonic);
+        throw UnknownInstruction(mnemonic);
     }
 
     return machine_code;

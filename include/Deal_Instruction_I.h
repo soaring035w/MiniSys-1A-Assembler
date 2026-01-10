@@ -29,7 +29,8 @@ extern std::regex I_format_regex;
 MachineCode I_FormatInstruction(const std::string& mnemonic,
                                 const std::string& assembly,
                                 UnsolvedSymbolMap& unsolved_symbol_map,
-                                MachineCodeIt machine_code_it);
+                                MachineCodeIt machine_code_it,
+                                Instruction* cur_instruction);    // 当前指令指针（用于错误报告）
 
 /*
  * isI_Format：

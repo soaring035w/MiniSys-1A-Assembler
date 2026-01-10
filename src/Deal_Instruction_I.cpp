@@ -34,7 +34,8 @@ std::regex I_format_regex(
 MachineCode I_FormatInstruction(const std::string& mnemonic,
                                 const std::string& assembly,
                                 UnsolvedSymbolMap& unsolved_symbol_map,
-                                MachineCodeIt machine_code_it) {
+                                MachineCodeIt machine_code_it,
+                                Instruction* cur_instruction) {   // 当前指令指针
 
     MachineCode& machine_code = *machine_code_it;
     machine_code = 0;  // 初始化
@@ -50,7 +51,7 @@ MachineCode I_FormatInstruction(const std::string& mnemonic,
     // COP0 指令（MFC0 / MTC0）
     if (mnemonic == "MFC0" || mnemonic == "MTC0") {
         /*
-         * COP0 其实属于 R 格式，但此处作者为了方便，把它当成 I 格式统一处理。
+         * COP0 其实属于 R 格式，但为了方便，把它当成 I 格式统一处理。
          *
          * 格式：
          *    MFC0 rt, rd, sel
@@ -128,7 +129,7 @@ MachineCode I_FormatInstruction(const std::string& mnemonic,
 
         } else {
             if (isI_Format(assembly)) throw OperandError(mnemonic);
-            else throw UnkonwInstruction(mnemonic);
+            else throw UnknownInstruction(mnemonic);
         }
     }
 
@@ -224,7 +225,7 @@ MachineCode I_FormatInstruction(const std::string& mnemonic,
         else {
         err:
             if (isI_Format(assembly)) throw OperandError(mnemonic);
-            else throw UnkonwInstruction(mnemonic);
+            else throw UnknownInstruction(mnemonic);
         }
     }
 

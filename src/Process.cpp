@@ -1,357 +1,330 @@
 #include "Headers.h"
 
-Instruction* cur_instruction = nullptr; // 当前正在处理的指令（用于准确错误定位）
-unsigned cur_address = 0;               // 当前地址累加器（每条指令增加 4 字节）
-
-/*
- * 处理 .text 段所有指令的第一遍扫描：
- *  - 处理标签，加入 symbol_map
- *  - 调用 ProcessInstruction 生成机器码
- *  - 更新地址（cur_address）
- *
- * instruction_list 中的每一项 Instruction 会经过一次处理。
+/**
+ * @brief 处理代码段（Text Segment）
+ * * 第一遍扫描的核心逻辑：
+ * 1. 遍历指令列表。
+ * 2. 提取标签（Label）并建立符号表映射。
+ * 3. 调用 DispatchInstruction 解析助记符和操作数，生成初步机器码。
+ * 4. 记录未知符号到 unsolved_symbol_map 中，留待后续解析。
+ * * @param instruction_list 指令列表（输入/输出）
+ * @param unsolved_symbol_map 未解析符号表（输出），用于记录使用了尚未定义标签的指令
+ * @param symbol_map 符号表（输出），记录 Label 对应的地址
+ * @return true 如果过程中发生错误, false 如果成功
  */
-int GeneratedMachineCode(InstructionList& instruction_list,
-                         UnsolvedSymbolMap& unsolved_symbol_map,
-                         SymbolMap& symbol_map) {
-
-    unsigned int address = 0;
-    bool meet_error = 0;
-    cur_address = 0;
+bool AssemblerCore::ProcessTextSegment(InstructionList& instruction_list,
+                                       UnsolvedSymbolMap& unsolved_symbol_map,
+                                       SymbolMap& symbol_map) {
+    current_address = 0; // PC 初始化
+    has_error = false;
 
     for (auto& instruction : instruction_list) {
-
-        // 如果这一行已填充
+        // 如果该指令已经被处理过，更新地址并跳过
         if (instruction.done) {
-            address = cur_address =
-                instruction.address + 4 * instruction.machine_code.size();
+            instruction.address = current_address;
+            current_address += 4 * instruction.machine_code.size(); // MIPS 指令为 4 字节
             continue;
         }
 
-        assert(instruction.machine_code.size() == 0);
+        assert(instruction.machine_code.empty());
+        current_instruction_ptr = &instruction; // 记录当前指令指针，主要用于 try-catch 块中报错时的上下文定位
 
-        cur_instruction = &instruction;
+        try {
+            // 1. 预处理：提取行首的 Label，剥离行尾的注释
+            // 返回的 assembly 是去除了 Label 和注释后的纯汇编语句（如 "add $t0, $t1, $t2"）
+            std::string assembly = ExtractLabelAndStripComment(current_address, instruction.assembly, symbol_map);
+            assembly = toUppercase(assembly); // 统一转大写，实现大小写不敏感
 
-        // 处理 label，并将汇编命令统一转为大写
-        std::string assembly = toUppercase(
-            ProcessLabel(address, instruction.assembly, symbol_map));
+            instruction.address = current_address; // 记录指令的当前 PC 地址
 
-        instruction.address = address;
-
-        if (assembly != "") {
-            try {
-                ProcessInstruction(assembly, instruction, unsolved_symbol_map);
-            } catch (const std::exception& e) {
-                cur_instruction = nullptr;
-                meet_error = 1;
+            // 2. 解析指令
+            if (!assembly.empty()) {
+                // 分发给具体的指令处理函数（R/I/J/Macro），并在内部生成机器码模板
+                // DispatchInstruction 内部会执行 current_address += 4
+                DispatchInstruction(assembly, instruction, unsolved_symbol_map);
             }
-            address = cur_address;
+        } catch (const std::exception& e) {
+            LogError(e.what(), instruction.assembly);
+            has_error = true;
         }
-
-        instruction.done = true;
-        cur_instruction = nullptr;
+        
+        instruction.done = true; // 标记处理完成
+        current_instruction_ptr = nullptr;
     }
-
-    return meet_error;
+    return has_error;
 }
 
-/*
- * ================================
- *   GeneratedDataSegment()
- * ================================
- *
- * 数据段处理：
- *  - 识别标签
- *  - 处理 BYTE/HALF/WORD 伪指令
- *  - 更新地址（每个字节 +1）
+/**
+ * @brief 处理数据段（Data Segment）
+ * * 解析 .data 段的伪指令（.byte, .word 等），将数据转换为二进制流并存入内存映像。
+ * 同时也处理数据段的 Label。
+ * * @param data_list 数据定义列表
+ * @param symbol_map 符号表
+ * @return true 如果有错, false 成功
  */
-int GeneratedDataSegment(DataList& data_list,
-                         SymbolMap& symbol_map) {
-
-    unsigned int address = 0;
-    bool meet_error = 0;
-    cur_address = 0;
+bool AssemblerCore::ProcessDataSegment(DataList& data_list, SymbolMap& symbol_map) {
+    current_address = 0; // 数据段重新计数
+    has_error = false;
 
     for (auto& data : data_list) {
-
         if (data.done) {
-            address = cur_address = data.address + data.raw_data.size();
+            data.address = current_address;
+            current_address += data.raw_data.size();
             continue;
         }
 
-        assert(data.raw_data.size() == 0);
-        cur_instruction = (Instruction*)&data;
+        assert(data.raw_data.empty());
+        
+        // 报错统一使用 Instruction* 类型。
+        current_instruction_ptr = reinterpret_cast<const Instruction*>(&data); 
 
-        std::string assembly =
-            toUppercase(ProcessLabel(address, data.assembly, symbol_map));
+        try {
+            // 提取 Label (例如: "arr: .word 1, 2, 3")
+            std::string assembly = ExtractLabelAndStripComment(current_address, data.assembly, symbol_map);
+            assembly = toUppercase(assembly);
 
-        data.address = address;
+            data.address = current_address;
 
-        if (assembly != "") {
-            try {
-                ProcessData(assembly, data);
-            } catch (const std::exception& e) {
-                cur_instruction = nullptr;
-                meet_error = 1;
+            if (!assembly.empty()) {
+                // 解析 .word, .byte 等指令并填充 data.raw_data
+                DispatchData(assembly, data);
             }
-
-            address = cur_address;
+        } catch (const std::exception& e) {
+            LogError(e.what(), data.assembly);
+            has_error = true;
         }
 
         data.done = true;
+        current_instruction_ptr = nullptr;
     }
-
-    return meet_error;
+    return has_error;
 }
 
-/*
- * ================================
- *   ProcessInstruction()
- * ================================
- *
- * 根据助记符选择 I/R/J/Macro 的处理方式。
- * 每解析一条真实指令 → cur_address += 4。
+/**
+ * @brief 符号重定位/回填（Back-patching）
+ * * 在所有代码扫描完成后调用。遍历之前记录的“未解决符号”，
+ * 在完整的符号表中查找地址，并填入对应的机器码字段中。
+ * * @param unsolved_symbol_map 待解决的符号引用集合
+ * @param symbol_map 完整的符号地址表
+ * @return true 如果有未定义的符号或解析错误, false 成功
  */
-void ProcessInstruction(const std::string& assembly, Instruction& instruction,
-                        UnsolvedSymbolMap& unsolved_symbol_map) {
+bool AssemblerCore::ResolveSymbols(UnsolvedSymbolMap& unsolved_symbol_map,
+                                   const SymbolMap& symbol_map) {
+    has_error = false;
 
-    if (assembly != "") {
-
-        std::string mnemonic = GetMnemonic(assembly);
-
-        if (isR_Format(mnemonic)) {
-
-            MachineCodeIt handel = NewMachineCode(instruction);
-            R_FormatInstruction(toUppercase(mnemonic), assembly,
-                                unsolved_symbol_map, handel);
-            cur_address += 4;
-
-        } else if (isI_Format(mnemonic)) {
-
-            MachineCodeIt handel = NewMachineCode(instruction);
-            I_FormatInstruction(toUppercase(mnemonic), assembly,
-                                unsolved_symbol_map, handel);
-            cur_address += 4;
-
-        } else if (isJ_Format(mnemonic)) {
-
-            MachineCodeIt handel = NewMachineCode(instruction);
-            J_FormatInstruction(toUppercase(mnemonic), assembly,
-                                unsolved_symbol_map, handel);
-            cur_address += 4;
-
-        } else if (isMacro_Format(mnemonic)) { // 宏指令（mov/push/pop/nop）
-
-            MachineCodeIt handel = NewMachineCode(instruction);
-            Macro_FormatInstruction(toUppercase(mnemonic), assembly,
-                                    unsolved_symbol_map, handel);
-            cur_address += 4;
-
-        } else {
-            throw UnkonwInstruction(mnemonic);
+    for (const auto& [symbol, references] : unsolved_symbol_map) {
+        
+        // 检查符号是否存在于全局符号表中
+        if (symbol_map.find(symbol) == symbol_map.end()) {
+            LogError("Unknown Symbol: " + symbol);
+            has_error = true;
+            continue; // 发生错误但不影响检查其他符号，继续循环
         }
-    }
-}
 
-/*
- * ================================
- *   ProcessData()
- * ================================
- *
- * 处理 BYTE / HALF / WORD 伪指令，支持重复：
- *   .byte 10 : 3    → 生成 0A 0A 0A
- */
-void ProcessData(const std::string& assembly, Data& data) {
+        int symbol_addr = symbol_map.at(symbol); // 目标符号的绝对地址
 
-    if (assembly != "") {
-
-        std::regex re(R"(^\.(BYTE|HALF|WORD)\s+(.+)$)", std::regex::icase);
-        std::cmatch m;
-        std::regex_search(assembly.c_str(), m, re);
-
-        if (!m.empty()) {
-            const std::string type = m[1].str();
-            std::string datastr = m[2].str();
-
-            // 匹配 token: value : repeat ,
-            std::regex re(R"(^([^:,\s]+)\s*(?:\:\s*([^:,\s]+))?(\s*,\s*)?)",
-                          std::regex::icase);
-
-            do {
-                std::cmatch m;
-                std::regex_search(datastr.c_str(), m, re);
-
-                std::string cur_data_str = m[1].str();
-                std::string repeat_time_str = m[2].str();
-
-                datastr = m.suffix();
-
-                unsigned repeat_time = 1;
-
-                if (m[2].matched) {
-                    if (isPositive(repeat_time_str))
-                        repeat_time = toUNumber(repeat_time_str);
-                    else
-                        throw ExceptPositive(repeat_time_str);
-                }
-
-                if (!isNumber(cur_data_str))
-                    throw ExceptNumber(cur_data_str);
-
-                std::uint32_t d = toNumber(cur_data_str);
-
-                // 根据 BYTE / HALF / WORD 写入 raw_data
-                for (unsigned i = 0; i < repeat_time; i++) {
-
-                    if (type == "BYTE") {
-                        data.raw_data.push_back(d & 0xff);
-                        cur_address += 1;
-
-                    } else if (type == "HALF") {
-                        data.raw_data.push_back(d & 0xff);
-                        data.raw_data.push_back((d >> 8) & 0xff);
-                        cur_address += 2;
-
-                    } else if (type == "WORD") {
-                        data.raw_data.push_back(d & 0xff);
-                        data.raw_data.push_back((d >> 8) & 0xff);
-                        data.raw_data.push_back((d >> 16) & 0xff);
-                        data.raw_data.push_back(d >> 24);
-                        cur_address += 4;
-
-                    } else {
-                        throw std::runtime_error("Unkonw error.");
-                    }
-                }
-
-            } while (datastr != "");
-
-        }
-    }
-}
-
-/*
- * ================================
- *   ProcessLabel()
- * ================================
- *
- * 提取标签 "Label: instruction"
- * 将标签加入 symbol_map[label] = address
- * 返回 instruction 部分
- */
-std::string ProcessLabel(unsigned int address, const std::string& assembly,
-                         SymbolMap& symbol_map) {
-
-    static std::regex re("\\s*(?:(\\S+?)\\s*:)?\\s*(.*?)\\s*(?:#.*)?");
-    std::smatch match;
-
-    std::string assembly2 = KillComment(assembly);
-
-    std::regex_match(assembly2, match, re);
-
-    if (match[1].matched) {
-        std::string label = toUppercase(match[1].str());
-
-        if (symbol_map.find(label) != symbol_map.end())
-            throw std::runtime_error("Redefine symbol:" + label);
-
-        symbol_map[label] = address;
-    }
-
-    return match[2].str(); // 去掉 label 后的剩余指令
-}
-
-/*
- * 去掉注释（# 后的部分）
- */
-std::string KillComment(const std::string& assembly) {
-    static std::regex re("^([^#]*)(?:#.*)?");
-    std::smatch match;
-    std::regex_match(assembly, match, re);
-    return match[1].str();
-}
-
-/*
- * ================================
- *   SolveSymbol()
- * ================================
- *
- * 第二遍扫描：
- *   将所有未解析符号引用位置补全。
- *
- * 对 I/J/R 不同类型字段有不同处理：
- *   - I：立即数
- *   - J：跳转 26-bit 地址（右移 2）
- *   - R：shamt（极少见）
- *
- * 对 branch 指令：
- *   imm = target_addr - (PC+4)
- *   imm >>= 2
- */
-int SolveSymbol(UnsolvedSymbolMap& unsolved_symbol_map,
-                const SymbolMap& symbol_map) {
-
-    for (auto it = unsolved_symbol_map.begin(); it != unsolved_symbol_map.end(); it++) {
-
-        std::string symbol = it->first;
-
-        for (auto& ref : it->second) {
+        // 遍历所有引用了该符号的指令位置
+        for (const auto& ref : references) {
             try {
-                cur_instruction = ref.instruction;
-                cur_address = cur_instruction->address;
+                current_instruction_ptr = ref.instruction;
+                unsigned inst_addr = current_instruction_ptr->address; // 当前指令的地址（PC）
+                MachineCode& machine_code = *ref.machine_code_handle;  // 指向机器码的引用
 
-                if (symbol_map.find(symbol) == symbol_map.end()) {
-                    throw std::runtime_error("Unknow Symbol: " + symbol + ".");
-                }
-
-                MachineCode& machine_code = *ref.machine_code_handle;
-
-                // R-format: 填 shamt（一般用于测试）
+                // 根据指令格式回填不同的字段
                 if (isR_Format(machine_code)) {
-                    int shamt = symbol_map.at(symbol);
-                    SetShamt(machine_code, shamt);
-                }
-
-                // I-format
+                    SetShamt(machine_code, symbol_addr);
+                } 
                 else if (isI_Format(machine_code)) {
+                    int imm = symbol_addr;
+                    int op = machine_code >> 26; // 提取高6位 Opcode
 
-                    int imm = symbol_map.at(symbol);
-                    int op = machine_code >> 26;
-
-                    // 分支跳转偏移计算
-                    if (op == 0b000100 || op == 0b000101 ||
-                        op == 0b000001 || op == 0b000111 ||
-                        op == 0b000110) {
-                        imm -= cur_address + 4;
-                        imm >>= 2;
+                    // 分支指令 (beq, bne 等) 使用相对寻址
+                    // Offset = (Target Address - (Current PC + 4)) / 4
+                    if (IsBranchOpcode(op)) {
+                        imm -= (inst_addr + 4); // 减去 (PC + 4)
+                        imm >>= 2;              // 除以 4 (右移2位)
                     }
-
+                    // 普通 I-Format (如 lw, addi) 使用绝对地址的低16位或者立即数
                     SetImmediate(machine_code, imm);
-                }
-
-                // J-format: 地址右移两位
+                } 
                 else if (isJ_Format(machine_code)) {
-                    int addr = symbol_map.at(symbol) >> 2;
-                    SetAddress(machine_code, addr);
+                    // J-Format (j, jal) 使用伪绝对寻址
+                    // Target = Address >> 2 (省略低2位，高4位由 PC 决定，此处仅设置中间26位)
+                    SetAddress(machine_code, symbol_addr >> 2);
+                } 
+                else {
+                    throw std::runtime_error("Unknown instruction format during symbol resolution.");
                 }
 
-                else
-                    throw std::runtime_error("Unknow errors.");
-
-                cur_instruction = nullptr;
-            }
-
-            catch (const std::exception& e) {
-
-                if (symbol_map.find(symbol) != symbol_map.end()) {
-                    std::cout<<"This error occurs while solving symbol. At this time, " + symbol + " = " + std::to_string(symbol_map.at(symbol));
-                }
-
-                cur_instruction = nullptr;
-                return 1;
+            } catch (const std::exception& e) {
+                LogError(e.what(), "Resolving " + symbol);
+                has_error = true;
             }
         }
     }
+    current_instruction_ptr = nullptr;
+    return has_error;
+}
 
-    return 0;
+/**
+ * @brief 指令分发器
+ * * 识别助记符类型，调用对应的格式处理函数。
+ */
+void AssemblerCore::DispatchInstruction(const std::string& assembly, Instruction& instruction,
+                                        UnsolvedSymbolMap& unsolved_symbol_map) {
+    std::string mnemonic = GetMnemonic(assembly); // 获取第一个单词作为助记符
+    MachineCodeIt handle = NewMachineCode(instruction); // 在 instruction 中分配一个新的机器码槽位
+    
+    // 统一转大写
+    std::string upMnemonic = toUppercase(mnemonic);
+
+    // 根据助记符特征分发到具体的解析逻辑
+    if (isR_Format(mnemonic)) {
+        R_FormatInstruction(upMnemonic, assembly, unsolved_symbol_map, handle, &instruction);
+    } else if (isI_Format(mnemonic)) {
+        I_FormatInstruction(upMnemonic, assembly, unsolved_symbol_map, handle, &instruction);
+    } else if (isJ_Format(mnemonic)) {
+        J_FormatInstruction(upMnemonic, assembly, unsolved_symbol_map, handle, &instruction);
+    } else if (isMacro_Format(mnemonic)) {
+        // 伪指令（Macro）可能展开为多条机器码，需要当前地址上下文
+        Macro_FormatInstruction(upMnemonic, assembly, unsolved_symbol_map, handle, current_address, &instruction);
+    } else {
+        throw UnknownInstruction(mnemonic);
+    }
+
+    current_address += 4; // MIPS 指令长度固定为 4 字节
+}
+
+/**
+ * @brief 解析数据段伪指令 (.byte, .half, .word)
+ * * 支持格式示例:
+ * .word 10, 20
+ * .byte 0xFF:4  (表示值 0xFF 重复 4 次)
+ */
+void AssemblerCore::DispatchData(const std::string& assembly, Data& data) {
+    // 1. 匹配类型：.BYTE / .HALF / .WORD
+    // re_type 匹配行首的伪指令类型，Group 1 是类型，Group 2 是后续的数据字符串
+    static const std::regex re_type(R"(^\.(BYTE|HALF|WORD)\s+(.+)$)", std::regex::icase);
+    
+    // 2. 匹配数据 Token：Value : Repeat
+    // re_token 匹配 "数值" 或 "数值:重复次数"
+    // Group 1: 数值, Group 2: 重复次数 (可选)
+    static const std::regex re_token(R"(^([^:,\s]+)\s*(?:\:\s*([^:,\s]+))?(\s*,\s*)?)", std::regex::icase);
+
+    std::cmatch m;
+    if (!std::regex_search(assembly.c_str(), m, re_type)) {
+        return; // 不是数据定义指令，直接返回
+    }
+
+    const std::string type = toUppercase(m[1].str());
+    std::string data_stream_str = m[2].str(); // 获取数据部分字符串 (如 "10, 0xFF:2")
+
+    // 循环解析逗号分隔的数据项
+    while (!data_stream_str.empty()) {
+        std::cmatch token_match;
+        if (!std::regex_search(data_stream_str.c_str(), token_match, re_token)) {
+            break;
+        }
+
+        std::string val_str = token_match[1].str(); // 数值部分
+        std::string rep_str = token_match[2].str(); // 重复次数部分（如果有）
+        
+        // 更新剩余字符串，准备下一次循环解析
+        data_stream_str = token_match.suffix().str();
+
+        unsigned repeat_count = 1;
+        // 如果存在冒号后的重复次数
+        if (token_match[2].matched) {
+            if (!isPositive(rep_str)) throw ExceptPositive(rep_str);
+            repeat_count = toUNumber(rep_str);
+        }
+
+        if (!isNumber(val_str)) throw ExceptNumber(val_str);
+        uint32_t val = toNumber(val_str);
+
+        // 根据类型将数据按小端序写入 raw_data
+        for (unsigned i = 0; i < repeat_count; i++) {
+            if (type == "BYTE") {
+                data.raw_data.push_back(val & 0xFF);
+                current_address += 1;
+            } else if (type == "HALF") {
+                data.raw_data.push_back(val & 0xFF);        // 低位
+                data.raw_data.push_back((val >> 8) & 0xFF); // 高位
+                current_address += 2;
+            } else if (type == "WORD") {
+                data.raw_data.push_back(val & 0xFF);
+                data.raw_data.push_back((val >> 8) & 0xFF);
+                data.raw_data.push_back((val >> 16) & 0xFF);
+                data.raw_data.push_back((val >> 24) & 0xFF); // 最高位
+                current_address += 4;
+            } else {
+                 throw std::runtime_error("Unknown data directive: " + type);
+            }
+        }
+    }
+}
+
+/**
+ * @brief 提取 Label 并移除注释
+ * * 输入示例: "Loop: add $t1, $t2, $t3 # comment"
+ * 动作: 
+ * 1. 识别 Label "Loop"，存入 symbol_map，对应当前 address。
+ * 2. 移除 "# comment"。
+ * 3. 返回 "add $t1, $t2, $t3"。
+ * * @param address 当前指令地址
+ * @param assembly 原始汇编字符串
+ * @param symbol_map 符号表
+ * @return std::string 清理后的汇编指令
+ */
+std::string AssemblerCore::ExtractLabelAndStripComment(unsigned int address, 
+                                                       const std::string& assembly, 
+                                                       SymbolMap& symbol_map) {
+    // 正则解释:
+    // \s* : 忽略行首空白
+    // (?:(\S+?)\s*:)?  : 可选组。捕获非空字符(\S+)作为Label(Group 1)，后跟冒号
+    // \s* : Label后的空白
+    // ([^#]*?)         : 捕获指令主体(Group 2)，匹配非 '#' 的字符
+    // \s* : 指令后的空白
+    // (?:#.*)?         : 可选组。匹配 '#' 开头的注释直到行尾
+    static const std::regex re_line(R"(\s*(?:(\S+?)\s*:)?\s*([^#]*?)\s*(?:#.*)?)");
+    std::smatch match;
+
+    if (std::regex_match(assembly, match, re_line)) {
+        // 如果匹配到了 Label (Group 1)
+        if (match[1].matched) {
+            std::string label = toUppercase(match[1].str());
+            // 查重：不允许重复定义 Label
+            if (symbol_map.find(label) != symbol_map.end()) {
+                throw std::runtime_error("Redefined symbol: " + label);
+            }
+            symbol_map[label] = address;
+        }
+        // 返回指令部分 (Group 2)
+        return match[2].str();
+    }
+    return "";
+}
+
+/**
+ * @brief 辅助判断 Opcode 是否为 MIPS 分支指令
+ * * 用于在符号解析时判断是否需要计算相对偏移量 (PC-Relative)。
+ * 涉及: beq(4), bne(5), bgez/bltz(1), bgtz(7), blez(6)
+ */
+bool AssemblerCore::IsBranchOpcode(int op) const {
+    return (op == 0b000100 || op == 0b000101 || // beq, bne
+            op == 0b000001 || op == 0b000111 || // bgez/bltz (REGIMM), bgtz
+            op == 0b000110);                    // blez
+}
+
+/**
+ * @brief 错误日志输出
+ * @param msg 错误信息
+ * @param context 上下文信息（如出错的汇编代码行）
+ */
+void AssemblerCore::LogError(const std::string& msg, const std::string& context) {
+    std::cerr << "[Error] " << msg;
+    if (!context.empty()) {
+        std::cerr << " | Context: " << context;
+    }
+    std::cerr << std::endl;
 }

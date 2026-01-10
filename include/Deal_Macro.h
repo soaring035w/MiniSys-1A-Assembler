@@ -36,7 +36,9 @@ extern std::regex Macro_format_regex;
 MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                                 const std::string& assembly,
                                 UnsolvedSymbolMap& unsolved_symbol_map,
-                                MachineCodeIt& machine_code_it);
+                                MachineCodeIt& machine_code_it,
+                                unsigned int& cur_address,
+                                Instruction* cur_instruction);
 
 /*
  * 判断一条汇编语句是否是宏指令（MOV/PUSH/POP/NOP）

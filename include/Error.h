@@ -45,10 +45,10 @@ class TooManyOperand : public OperandError {
         : OperandError(mnemonic, "Too mamy operands"){};
 };
 
-class UnkonwInstruction : public std::runtime_error {
+class UnknownInstruction : public std::runtime_error {
    public:
     // 未知指令
-    explicit UnkonwInstruction(const std::string &mnemonic);
+    explicit UnknownInstruction(const std::string &mnemonic);
 };
 
 class NumberOverflow : public std::runtime_error {

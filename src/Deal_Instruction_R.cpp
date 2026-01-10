@@ -38,7 +38,8 @@ std::regex R_format_regex(
 MachineCode R_FormatInstruction(const std::string& mnemonic,
                                 const std::string& assembly,
                                 UnsolvedSymbolMap& unsolved_symbol_map,
-                                MachineCodeIt machine_code_it) {
+                                MachineCodeIt machine_code_it,
+                                Instruction* cur_instruction) {
 
     MachineCode& machine_code = *machine_code_it;
     machine_code = 0;
@@ -228,7 +229,7 @@ MachineCode R_FormatInstruction(const std::string& mnemonic,
         if (isR_Format(assembly))
             throw OperandError(mnemonic);
         else
-            throw UnkonwInstruction(mnemonic);
+            throw UnknownInstruction(mnemonic);
     }
 
     return machine_code;

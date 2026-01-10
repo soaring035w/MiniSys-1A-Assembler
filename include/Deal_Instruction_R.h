@@ -20,7 +20,8 @@ extern std::regex R_format_regex;
 MachineCode R_FormatInstruction(const std::string& mnemonic,
                                 const std::string& assembly,
                                 UnsolvedSymbolMap& unsolved_symbol_map,
-                                MachineCodeIt machine_code_it);
+                                MachineCodeIt machine_code_it,
+                                Instruction* cur_instruction);
 
 /*
  * R 格式判断

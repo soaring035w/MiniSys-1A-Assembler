@@ -8,13 +8,21 @@
  */
 enum class SegmentState { Global, Data, Text };
 
+// 去除汇编行中的注释部分
+std::string KillComment(const std::string& assembly) {
+    static std::regex re("^([^#]*)(?:#.*)?");
+    std::smatch match;
+    std::regex_match(assembly, match, re);
+    return match[1].str();
+}
+
 bool handleSegmentDirective(const std::string& input,
                              SegmentState& state,
                              const std::string& path,
                              int line,
                              InstructionList& inst_list,
                              DataList& data_list) {
-    // 匹配以 .data 或 .text 开头的行，并可选捕获后面的数值参数
+    // 匹配以 .data 或 .text 开头的行，捕获后面的数值参数
     static const std::regex segment_re(R"(^\s*\.(data|text)\s*(\S+)?)", std::regex::icase);
     std::smatch match;
 
@@ -48,7 +56,7 @@ bool handleSegmentDirective(const std::string& input,
                 inst_list.push_back(inst);
             }
         }
-        return true; // 告知主循环此行已作为段定义处理
+        return true;
     }
     return false;
 }
@@ -62,7 +70,6 @@ bool handleSegmentDirective(const std::string& input,
  * 4. 输出生成：生成 FPGA 所需的 .coe 镜像文件。
  */
 int doAssemble(const std::string &input_path, const std::string &output_dir) {
-    // 使用 ifstream 自动管理文件资源 (RAII)
     std::ifstream infile(input_path);
     if (!infile) {
         std::cerr << "Assembler Error: Cannot open input file " << input_path << std::endl;
@@ -73,7 +80,7 @@ int doAssemble(const std::string &input_path, const std::string &output_dir) {
     DataList data_list;               // 储存得到的数据
     SegmentState current_state = SegmentState::Global;
     std::string current_line; // 当前处理到的行
-    int line_counter = 0;
+    int line_counter = 0; // 当前行号计数器
 
     // --- 文本预处理与初次分类 ---
     try {
@@ -115,23 +122,24 @@ int doAssemble(const std::string &input_path, const std::string &output_dir) {
     // --- 两遍扫描 ---
     SymbolMap symbol_table;           // 存储标签与地址的映射 (Label -> Address)
     UnsolvedSymbolMap unsolved_map;   // 记录那些因为 Label 尚未定义而无法生成的机器码位置
+    AssemblerCore assembler_core;     // 汇编器核心实例
 
     // Pass 1: 解析数据段。确定变量地址，将数据标签存入符号表。
-    if (GeneratedDataSegment(data_list, symbol_table)) {
+    if (assembler_core.ProcessDataSegment(data_list, symbol_table)) {
         std::cerr << "Error in Data Segment Generation." << std::endl;
         return 1;
     }
 
     // Pass 1: 解析指令段。计算指令地址，尝试编码。
     // 如果遇到跳转指令指向未知的 Label，会先存入 unsolved_map。
-    if (GeneratedMachineCode(instruction_list, unsolved_map, symbol_table)) {
+    if (assembler_core.ProcessTextSegment(instruction_list, unsolved_map, symbol_table)) {
         std::cerr << "Error in Machine Code Generation." << std::endl;
         return 1;
     }
 
     // Pass 2: 符号回填。
     // 此时所有 Label 的地址都已确定，遍历 unsolved_map 并修正之前留空的机器码。
-    if (SolveSymbol(unsolved_map, symbol_table)) {
+    if (assembler_core.ResolveSymbols(unsolved_map, symbol_table)) {
         std::cerr << "Error: Undefined symbols detected." << std::endl;
         return 1;
     }

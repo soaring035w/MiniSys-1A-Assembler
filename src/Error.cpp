@@ -36,12 +36,12 @@ OperandError::OperandError(const std::string &mnemonic, const std::string &msg)
      */
     : std::runtime_error(msg + " (" + mnemonic + ")."){};
 
-UnkonwInstruction::UnkonwInstruction(const std::string &mnemonic)
+UnknownInstruction::UnknownInstruction(const std::string &mnemonic)
     /*
      * 未知指令，如用户输入：
      *   foo r1, r2
      */
-    : std::runtime_error("Unkonw instruction: " + mnemonic + "."){};
+    : std::runtime_error("Unknown instruction: " + mnemonic + "."){};
 
 NumberOverflow::NumberOverflow(const std::string &name, const std::string &max,
                                const std::string &now)
