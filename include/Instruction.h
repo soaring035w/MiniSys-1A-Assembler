@@ -1,11 +1,10 @@
 #pragma once
 
-using MachineCode = std::uint32_t; 
-// MachineCode 表示 32 位机器码（MIPS32 指令的最高位到最低位）
+// MachineCode 表示 32 位机器码
+using MachineCode = std::uint32_t;
 
-using MachineCodeHandle = std::vector<MachineCode>::iterator;
-// MachineCodeHandle 是指向 machine_code 数组中某个具体机器码的迭代器。
-// 这个句柄用于符号回填（修正跳转/立即数）。
+// MachineCodeIt 是指向 machine_code 数组中某个具体机器码的迭代器
+using MachineCodeIt = std::vector<MachineCode>::iterator;
 
 /*
  * Instruction 结构体表示一行 .text 段中的指令。
@@ -19,7 +18,8 @@ using MachineCodeHandle = std::vector<MachineCode>::iterator;
  * machine_code：本指令最终生成的一条或多条机器码（宏指令可能展开成多条）
  */
 struct Instruction {
-    std::string assembly, file;
+    std::string assembly;
+    std::string file;
     unsigned line;
     unsigned address;
     bool done = false;
@@ -33,8 +33,8 @@ struct Instruction {
  * instruction：该引用符号属于哪条 Instruction
  */
 struct SymbolRef {
-    MachineCodeHandle machine_code_handle;
-    Instruction* instruction;
+    MachineCodeIt machine_code_handle; // 需要回填的machine_code
+    Instruction* instruction; // 引用符号属于哪条 Instruction
 };
 
 using InstructionList = std::vector<Instruction>;
@@ -61,7 +61,7 @@ using SymbolMap = std::unordered_map<std::string, unsigned int>;
  *      在 Instruction.machine_code 末尾插入一个新的机器码（初始值 0）
  *      返回指向它的迭代器，用于后续写入 OP, RS, RT 等字段。
  */
-MachineCodeHandle NewMachineCode(Instruction& i);
+MachineCodeIt NewMachineCode(Instruction& i);
 
 // 不同类型指令的处理模块
 #include "Deal_Instruction_I.h"

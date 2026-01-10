@@ -21,7 +21,7 @@
  *       字节值（二进制）
  *       assembly（原汇编文本）
  */
-const int TOTAL_WORDS = 32768; // 总共输出的字数（每字 4 字节，最多128KB）
+const int TOTAL_WORDS = 16384; // 总共输出的字数（每字 4 字节，最多64KB）
 
 void OutputInstruction(std::ostream& out,
                        const InstructionList &instruction_list);

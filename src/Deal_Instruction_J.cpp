@@ -29,7 +29,7 @@ std::regex J_format_regex("^(j|jal)", std::regex::icase);
 MachineCode J_FormatInstruction(const std::string& mnemonic,
                                 const std::string& assembly,
                                 UnsolvedSymbolMap& unsolved_symbol_map,
-                                MachineCodeHandle machine_code_it) {
+                                MachineCodeIt machine_code_it) {
 
     MachineCode& machine_code = *machine_code_it;
 

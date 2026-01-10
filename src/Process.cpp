@@ -21,7 +21,7 @@ int GeneratedMachineCode(InstructionList& instruction_list,
 
     for (auto& instruction : instruction_list) {
 
-        // 如果这一行是空行/已填充（如 .text NOP 填充），跳过
+        // 如果这一行已填充
         if (instruction.done) {
             address = cur_address =
                 instruction.address + 4 * instruction.machine_code.size();
@@ -121,28 +121,28 @@ void ProcessInstruction(const std::string& assembly, Instruction& instruction,
 
         if (isR_Format(mnemonic)) {
 
-            MachineCodeHandle handel = NewMachineCode(instruction);
+            MachineCodeIt handel = NewMachineCode(instruction);
             R_FormatInstruction(toUppercase(mnemonic), assembly,
                                 unsolved_symbol_map, handel);
             cur_address += 4;
 
         } else if (isI_Format(mnemonic)) {
 
-            MachineCodeHandle handel = NewMachineCode(instruction);
+            MachineCodeIt handel = NewMachineCode(instruction);
             I_FormatInstruction(toUppercase(mnemonic), assembly,
                                 unsolved_symbol_map, handel);
             cur_address += 4;
 
         } else if (isJ_Format(mnemonic)) {
 
-            MachineCodeHandle handel = NewMachineCode(instruction);
+            MachineCodeIt handel = NewMachineCode(instruction);
             J_FormatInstruction(toUppercase(mnemonic), assembly,
                                 unsolved_symbol_map, handel);
             cur_address += 4;
 
         } else if (isMacro_Format(mnemonic)) { // 宏指令（mov/push/pop/nop）
 
-            MachineCodeHandle handel = NewMachineCode(instruction);
+            MachineCodeIt handel = NewMachineCode(instruction);
             Macro_FormatInstruction(toUppercase(mnemonic), assembly,
                                     unsolved_symbol_map, handel);
             cur_address += 4;

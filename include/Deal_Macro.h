@@ -25,7 +25,7 @@ extern std::regex Macro_format_regex;
  *   machine_code_it：当前 machine_code 的位置（展开可能改变它）
  *
  * 返回：
- *   展开后的第一条真实机器码（通常实际会 push 多条）
+ *   展开后的第一条真实机器码
  *
  * 注意：
  *   因为宏指令可能插入多条指令，因此需要正确管理
@@ -36,7 +36,7 @@ extern std::regex Macro_format_regex;
 MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                                 const std::string& assembly,
                                 UnsolvedSymbolMap& unsolved_symbol_map,
-                                MachineCodeHandle& machine_code_it);
+                                MachineCodeIt& machine_code_it);
 
 /*
  * 判断一条汇编语句是否是宏指令（MOV/PUSH/POP/NOP）

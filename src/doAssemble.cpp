@@ -1,231 +1,164 @@
 ﻿#include "Headers.h"
 
-/*
- * doAssemble：汇编器主流程
- *
- * 主要步骤：
- *  1. 打开输入文件并逐行读取
- *  2. 识别 .data / .text 段
- *  3. 将数据段行保存到 DataList，将指令行保存到 InstructionList
- *  4. 执行两遍扫描：
- *      一、生成数据段（处理符号、计算偏移）
- *      二、生成文本段机器码（指令编码）
- *      三、解决延迟符号（反向修正跳转等）
- *  5. 输出到 .coe 文件
+/**
+ * 段状态枚举：标记当前扫描行属于哪个区域
+ * Global: 初始状态，不允许出现指令或数据
+ * Data:   数据段，存储变量、字符串等
+ * Text:   代码段，存储指令机器码
  */
-int doAssemble(const std::string &input_file_path,
-               const std::string &output_folder_path) {
-    bool meet_error = 0;  // 是否发生错误
+enum class SegmentState { Global, Data, Text };
 
-    std::fstream file;
-    file.open(input_file_path, std::ios_base::in);
-    if (!file.is_open()) {
-        std::cout<< "fail to open file: " + input_file_path;
+bool handleSegmentDirective(const std::string& input,
+                             SegmentState& state,
+                             const std::string& path,
+                             int line,
+                             InstructionList& inst_list,
+                             DataList& data_list) {
+    // 匹配以 .data 或 .text 开头的行，并可选捕获后面的数值参数
+    static const std::regex segment_re(R"(^\s*\.(data|text)\s*(\S+)?)", std::regex::icase);
+    std::smatch match;
+
+    if (std::regex_search(input, match, segment_re)) {
+        std::string segment_type = toUppercase(match[1].str());
+        
+        // 更新当前解析器的段状态
+        state = (segment_type == "DATA") ? SegmentState::Data : SegmentState::Text;
+
+        // 处理预留空间情况，例如 ".data 100" 表示预留 100 字节空间
+        if (match[2].matched && isPositive(match[2].str())) {
+            unsigned size_val = toUNumber(match[2].str());
+            
+            if (state == SegmentState::Data) {
+                // 在数据段插入指定长度的零填充
+                Data d;
+                d.file = path; d.line = line; d.assembly = input; 
+                d.address = 0; d.done = true; // 标记已完成，后续Pass不再解析
+                d.raw_data.assign(size_val, 0); 
+                data_list.push_back(d);
+            } else {
+                // 指令段必须 4 字节（32位）对齐
+                if (size_val % 4 != 0) {
+                    throw std::runtime_error("Alignment Error: .text size must be multiple of 4. (" + path + ":" + std::to_string(line) + ")");
+                }
+                // 在代码段插入指定数量的 NOP (指令机器码 0)
+                Instruction inst;
+                inst.file = path; inst.line = line; inst.assembly = input; 
+                inst.address = 0; inst.done = true;
+                inst.machine_code.assign(size_val / 4, 0); 
+                inst_list.push_back(inst);
+            }
+        }
+        return true; // 告知主循环此行已作为段定义处理
+    }
+    return false;
+}
+
+/**
+ * 汇编器核心函数
+ * 执行流程
+ * 1. 文本扫描：读取源文件，按段分类存入 List。
+ * 2. 第一遍扫描：计算各行地址，填充已知符号（Label）到符号表。
+ * 3. 第二遍扫描：解析前向引用（如跳转到后方标签），回填机器码。
+ * 4. 输出生成：生成 FPGA 所需的 .coe 镜像文件。
+ */
+int doAssemble(const std::string &input_path, const std::string &output_dir) {
+    // 使用 ifstream 自动管理文件资源 (RAII)
+    std::ifstream infile(input_path);
+    if (!infile) {
+        std::cerr << "Assembler Error: Cannot open input file " << input_path << std::endl;
         return 1;
     }
 
-    InstructionList instruction_list;  // 存储 .text 段中的每条指令
-    DataList data_list;                // 存储 .data 段中的每条数据
+    InstructionList instruction_list; // 储存得到的指令
+    DataList data_list;               // 储存得到的数据
+    SegmentState current_state = SegmentState::Global;
+    std::string current_line; // 当前处理到的行
+    int line_counter = 0;
 
-    int line = 0;  // 当前行号
-
-    // 枚举段类型
-    enum { global, data, text };
-    int state = global;  // 初始状态，没有进入任何段
-
-    // ========== 逐行读取源文件 ==========
-    while (!file.eof()) {
-        line++;
-        std::string input;
-        getline(file, input);
-        input = KillComment(input);  // 去掉注释（; # // 等）
-
-        /*
-         * 使用正则匹配：
-         *   .data
-         *   .text
-         *   .data 100
-         *   .text 20
-         *
-         * 其中 m[1] 为段名（data 或 text）
-         *      m[2] 为可选的数值（初始化填充大小）
-         */
-        std::regex re(R"(^\s*\.(data|text)\s*(\S+)?)", std::regex::icase);
-        std::cmatch m;
-        std::regex_search(input.c_str(), m, re);
-
-        // ---------- 匹配到段声明 ----------
-        if (!m.empty()) {
-            if (toUppercase(m[1].str()) == "DATA") {
-                state = data;
-
-                // 如果 .data 后跟数字，如 `.data 16`
-                if (m[2].matched) {
-                    if (isPositive(m[2].str())) {
-                        unsigned pos = toUNumber(m[2].str());
-
-                        // 创建一条空 Data（填充 pos 字节的 0）
-                        Data data;
-                        data.file = input_file_path;
-                        data.line = line;
-                        data.assembly = input;
-
-                        // 初始化空空间
-                        for (unsigned i = 0; i < pos; i++) {
-                            data.raw_data.push_back(0);
-                        }
-                        data.address = 0;
-                        data.done = true;  // 已经生成完（无须再解析）
-                        data_list.push_back(data);
-
-                    }
-                }
-
-            } else {  // ---------- 处理 .text ----------
-                state = text;
-
-                if (m[2].matched) {
-                    if (isPositive(m[2].str())) {
-                        unsigned pos = toUNumber(m[2].str());
-
-                        // text 段必须 4 字节对齐
-                        if (pos % 4 != 0) {
-                            std::cerr<< "DWORD-aligned error." + input_file_path + '(' + std::to_string(line) +')';
-                            return 1;
-                        }
-
-                        // 创建空指令（填充 NOP）
-                        Instruction instruction;
-                        instruction.file = input_file_path;
-                        instruction.line = line;
-                        instruction.assembly = input;
-
-                        // pos / 4 个 NOP
-                        for (unsigned i = 0; i < pos / 4; i++) {
-                            instruction.machine_code.push_back(0);
-                        }
-                        instruction.address = 0;
-                        instruction.done = true;
-                        instruction_list.push_back(instruction);
-
-                    }
-                }
+    // --- 文本预处理与初次分类 ---
+    try {
+        while (std::getline(infile, current_line)) {
+            line_counter++;
+            
+            // 去除注释和前后空白字符
+            std::string clean_line = KillComment(current_line);
+            if (clean_line.empty() || clean_line.find_first_not_of(" \t\r\n") == std::string::npos) {
+                continue; // 跳过空行
             }
 
-            continue;  // 本行处理段定义结束
-        }
+            // 处理 .data / .text 段切换指令
+            if (handleSegmentDirective(clean_line, current_state, input_path, line_counter, instruction_list, data_list)) {
+                continue;
+            }
 
-        // ---------- 未进入任何段 ----------
-        if (state == global) {
-            std::cerr<<"Need a segment." + input_file_path + '(' + std::to_string(line) + ')';
-            return 1;
+            // 检查非法行：在定义任何段之前就出现内容
+            if (current_state == SegmentState::Global) {
+                std::cerr << "Assembler Error: Statement found outside of any segment at " << input_path << ":" << line_counter << std::endl;
+                return 1;
+            }
 
-        // ---------- 文本段 ----------
-        } else if (state == text) {
-            Instruction instruction;
-            instruction.file = input_file_path;
-            instruction.line = line;
-            instruction.assembly = input;
-            instruction_list.push_back(instruction);
-
-        // ---------- 数据段 ----------
-        } else if (state == data) {
-            Data data;
-            data.file = input_file_path;
-            data.line = line;
-            data.assembly = input;
-            data_list.push_back(data);
-        }
-    }
-
-    file.close();
-
-    // 开始第二阶段：两遍扫描
-
-    UnsolvedSymbolMap unsolved_symbol_map; // 存放第一次扫描后无法确定的符号（如前向引用）
-    SymbolMap symbol_map;                  // 存放已解析出的符号表（标签 -> 地址）
-
-    /*
-     * 第一遍扫描数据段：
-     *   解析每条 Data（.word, .byte, .string, 标签等）
-     *   计算每条数据的地址
-     *   收集符号（标签）
-     *   遇到无法确定的符号位置 → 放入 unsolved_symbol_map
-     */
-    if (GeneratedDataSegment(data_list, symbol_map)) {
-        meet_error = 1;
-    }
-
-    /*
-     * 第一遍扫描文本段（指令）：
-     *   解析每条 Instruction 的助记符/寄存器/立即数
-     *   将其编码成机器码（若部分立即数为符号 → 标记未解决符号）
-     *   同样填充 instruction_list.address
-     */
-    if (GeneratedMachineCode(instruction_list, unsolved_symbol_map,
-                             symbol_map)) {
-        meet_error = 1;
-    }
-
-    /*
-     * 第二遍扫描：解决所有符号
-     *
-     * 这一步负责：
-     *   - 将 unsolved_symbol_map 中所有引用符号的位置反向填入正确地址
-     *   - 支持前向引用（跳转到后面才声明的 Label）
-     *
-     * 如果有符号最终仍找不到 → 报错 undefined symbol
-     */
-    if (!meet_error && SolveSymbol(unsolved_symbol_map, symbol_map)) {
-        meet_error = 1;
-    }
-
-    
-    // 所有内容生成完毕，开始输出
-    if (!meet_error) {
-        // 输出指令段到 prgmip32.coe
-        file.open(output_folder_path + "prgmip32.coe", std::ios_base::out);
-        if (file.is_open()) {
-            /*
-             * OutputInstruction：
-             *   将 instruction_list 中生成的机器码按 COE 文件格式输出
-             *   用于 FPGA Block RAM 初始化
-             */
-            OutputInstruction(file, instruction_list);
-        } else {
-            std::cerr<<"fail to open file: " + output_folder_path + "prgmip32.coe";
-        }
-        file.close();
-
-        
-        // 输出数据段到 dmem32.coe
-        file.open(output_folder_path + "dmem32.coe", std::ios_base::out);
-        if (file.is_open()) {
-            /*
-             * OutputDataSegment：
-             *   将 data_list 中的 raw_data 输出成 .coe 格式
-             *   用于 FPGA 数据存储初始化
-             */
-            OutputDataSegment(file, data_list);
-        } else {
-            std::cerr<<"fail to open file: " + output_folder_path + "dmem32.coe";
-        }
-        file.close();
-
-        // 打印每条指令和数据的解析结果到 details.txt
-        file.open(output_folder_path + "details.txt", std::ios_base::out);
-            if (file.is_open()) {
-                /*
-                 * ShowDetails：
-                 *   
-                 *   包括地址、编码、原语句等
-                 */
-                OutputDetails(instruction_list, data_list, file);
+            // 根据当前状态将行存入对应的待处理列表
+            if (current_state == SegmentState::Data) {
+                Data d; d.file = input_path; d.line = line_counter; d.assembly = clean_line;
+                data_list.push_back(d);
             } else {
-                std::cerr<<"fail to open file: " + output_folder_path + "details.txt";
+                Instruction inst; inst.file = input_path; inst.line = line_counter; inst.assembly = clean_line;
+                instruction_list.push_back(inst);
             }
-        file.close();
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Critical Error during parsing: " << e.what() << std::endl;
+        return 1;
+    }
+    infile.close();
+
+    // --- 两遍扫描 ---
+    SymbolMap symbol_table;           // 存储标签与地址的映射 (Label -> Address)
+    UnsolvedSymbolMap unsolved_map;   // 记录那些因为 Label 尚未定义而无法生成的机器码位置
+
+    // Pass 1: 解析数据段。确定变量地址，将数据标签存入符号表。
+    if (GeneratedDataSegment(data_list, symbol_table)) {
+        std::cerr << "Error in Data Segment Generation." << std::endl;
+        return 1;
     }
 
-    return meet_error;  // 0 = 成功，1 = 出现错误
+    // Pass 1: 解析指令段。计算指令地址，尝试编码。
+    // 如果遇到跳转指令指向未知的 Label，会先存入 unsolved_map。
+    if (GeneratedMachineCode(instruction_list, unsolved_map, symbol_table)) {
+        std::cerr << "Error in Machine Code Generation." << std::endl;
+        return 1;
+    }
+
+    // Pass 2: 符号回填。
+    // 此时所有 Label 的地址都已确定，遍历 unsolved_map 并修正之前留空的机器码。
+    if (SolveSymbol(unsolved_map, symbol_table)) {
+        std::cerr << "Error: Undefined symbols detected." << std::endl;
+        return 1;
+    }
+
+    // 文件导出
+    // 定义一个 Lambda 闭包简化重复的写文件流程
+    auto export_to_file = [&](const std::string& filename, auto& list, auto write_func) {
+        std::ofstream outfile(output_dir + filename);
+        if (outfile) {
+            write_func(outfile, list);
+            return true;
+        }
+        std::cerr << "IO Error: Could not write to " << filename << std::endl;
+        return false;
+    };
+
+    // 生成指令段 COE
+    if (!export_to_file("prgmip32.coe", instruction_list, OutputInstruction)) return 1;
+    // 生成数据段 COE
+    if (!export_to_file("dmem32.coe", data_list, OutputDataSegment)) return 1;
+    
+    // 生成调试详情文件
+    std::ofstream detail_file(output_dir + "details.txt");
+    if (detail_file) {
+        OutputDetails(instruction_list, data_list, detail_file);
+    }
+
+    std::cout << "Assembly completed successfully." << std::endl;
+    return 0; 
 }

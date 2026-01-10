@@ -22,7 +22,7 @@ void OutputInstruction(std::ostream& out,
 
     // ---- 把指令写入正确的地址 ----
     for (const auto& ins : instruction_list) {
-        int word_addr = ins.address / 4;   // 字节地址 → 字地址
+        int word_addr = ins.address / 4;   // 字节地址/4变为字地址
         for (size_t k = 0; k < ins.machine_code.size(); ++k) {
             if (word_addr + k < TOTAL_WORDS)
                 mem[word_addr + k] = ins.machine_code[k];
@@ -51,7 +51,7 @@ void OutputDataSegment(std::ostream& out,
 
     // --- 写入 Data 段 ---
     for (const auto& d : data_list) {
-        int word_addr = d.address / 4;      // 字节地址 → 字地址
+        int word_addr = d.address / 4;      // 字节地址变为字地址
         uint8_t buffer[4] = {0}; // 临时缓冲区，Data中的二进制数据是按byte存储的
         int bi = 0; // 缓冲区索引
 
@@ -59,7 +59,7 @@ void OutputDataSegment(std::ostream& out,
             buffer[bi++] = d.raw_data[i];
 
             if (bi == 4) {
-                uint32_t word = *(uint32_t*)buffer;  // little-endian
+                uint32_t word = *(uint32_t*)buffer;
                 if (word_addr < TOTAL_WORDS)
                     mem[word_addr] = word;
 

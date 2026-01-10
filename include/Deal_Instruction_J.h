@@ -17,7 +17,7 @@ extern std::regex J_format_regex;
 MachineCode J_FormatInstruction(const std::string& mnemonic,
                                 const std::string& assembly,
                                 UnsolvedSymbolMap& unsolved_symbol_map,
-                                MachineCodeHandle machine_code_it);
+                                MachineCodeIt machine_code_it);
 
 /*
  * 判断指令是否是 J 格式

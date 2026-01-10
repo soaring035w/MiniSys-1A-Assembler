@@ -35,7 +35,7 @@ std::regex Macro_format_regex("^(mov|push|pop|nop)", std::regex::icase);
 MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                                     const std::string& assembly,
                                     UnsolvedSymbolMap& unsolved_symbol_map,
-                                    MachineCodeHandle& machine_code_it) {
+                                    MachineCodeIt& machine_code_it) {
 
     std::string op1, op2, op3;
     GetOperand(assembly, op1, op2, op3);
@@ -100,7 +100,7 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                     unsigned number = toUNumber(op2);
 
                     // 新增一条 machine_code，用于后续 ORI
-                    MachineCodeHandle new_handel = NewMachineCode(*cur_instruction);
+                    MachineCodeIt new_handel = NewMachineCode(*cur_instruction);
 
                     // 第一个 machine_code_it 被复位到第一条指令上
                     machine_code_it = cur_instruction->machine_code.begin();
@@ -149,7 +149,7 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
         if (!op1.empty() && op2.empty() && op3.empty()) {
 
             // 展开为两条指令，因此新增 machine_code
-            MachineCodeHandle new_handel = NewMachineCode(*cur_instruction);
+            MachineCodeIt new_handel = NewMachineCode(*cur_instruction);
 
             // 第一条 ADDI 写入第一段 machine_code
             machine_code_it = cur_instruction->machine_code.begin();
@@ -177,7 +177,7 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
     else if (mnemonic == "POP") {
         if (!op1.empty() && op2.empty() && op3.empty()) {
 
-            MachineCodeHandle new_handel = NewMachineCode(*cur_instruction);
+            MachineCodeIt new_handel = NewMachineCode(*cur_instruction);
             machine_code_it = cur_instruction->machine_code.begin();
 
             I_FormatInstruction("LW",

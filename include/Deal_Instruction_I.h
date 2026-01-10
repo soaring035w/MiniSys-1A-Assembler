@@ -29,7 +29,7 @@ extern std::regex I_format_regex;
 MachineCode I_FormatInstruction(const std::string& mnemonic,
                                 const std::string& assembly,
                                 UnsolvedSymbolMap& unsolved_symbol_map,
-                                MachineCodeHandle machine_code_it);
+                                MachineCodeIt machine_code_it);
 
 /*
  * isI_Format：

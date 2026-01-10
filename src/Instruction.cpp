@@ -7,7 +7,7 @@
  *
  * 多数编码函数首先调用 NewMachineCode，然后再用 SetOP/SetRS 等函数填充字段。
  */
-MachineCodeHandle NewMachineCode(Instruction& i) {
+MachineCodeIt NewMachineCode(Instruction& i) {
     i.machine_code.push_back(0);
     return i.machine_code.begin() + (i.machine_code.size() - 1);
 }
