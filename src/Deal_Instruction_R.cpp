@@ -239,7 +239,7 @@ MachineCode R_FormatInstruction(const std::string& mnemonic,
  *   R 格式要求 OP == 0
  */
 bool isR_Format(MachineCode machine_code) {
-    return (machine_code >> 26 == 0);
+    return (machine_code >> 26 == 0 || machine_code >> 26 == 0b010000); // 包含 ERET 特例
 }
 
 /*

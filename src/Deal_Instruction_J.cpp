@@ -57,12 +57,14 @@ MachineCode J_FormatInstruction(const std::string& mnemonic,
 
             /*
              * op1 为跳转目的地址：
-             *
-             * 若是数字 → 直接写入（并给出警告）
+             * 若是数字 → 除以 4 后直接写入
              * 若是符号 → 写临时 0 占位，并加入未解决符号表
              */
             if (isNumber(op1)) {
-                SetAddress(machine_code, toNumber(op1));
+                unsigned raw_addr = toNumber(op1);
+                if(raw_addr % 4 != 0)
+                    std::cout << "Warning: Jump target address " << raw_addr << " is not word-aligned!" << std::endl;
+                SetAddress(machine_code, raw_addr >> 2); // 除以4后写入
                 std::cout<< "You are using an immediate value in jump instruction, ";
             } else {
                 // 符号地址需第二遍回填

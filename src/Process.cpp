@@ -148,7 +148,7 @@ bool AssemblerCore::ResolveSymbols(UnsolvedSymbolMap& unsolved_symbol_map,
                 } 
                 else if (isJ_Format(machine_code)) {
                     // J-Format (j, jal) 使用伪绝对寻址
-                    // Target = Address >> 2 (省略低2位，高4位由 PC 决定，此处仅设置中间26位)
+                    // Target = Address >> 2
                     SetAddress(machine_code, symbol_addr >> 2);
                 } 
                 else {
@@ -306,13 +306,11 @@ std::string AssemblerCore::ExtractLabelAndStripComment(unsigned int address,
 
 /**
  * @brief 辅助判断 Opcode 是否为 MIPS 分支指令
- * * 用于在符号解析时判断是否需要计算相对偏移量 (PC-Relative)。
- * 涉及: beq(4), bne(5), bgez/bltz(1), bgtz(7), blez(6)
+ * * 用于在符号解析时判断是否需要计算相对偏移量
  */
 bool AssemblerCore::IsBranchOpcode(int op) const {
-    return (op == 0b000100 || op == 0b000101 || // beq, bne
-            op == 0b000001 || op == 0b000111 || // bgez/bltz (REGIMM), bgtz
-            op == 0b000110);                    // blez
+    if (op == 0b000001 || (op >> 2) == 1) return true; // 所有的分支指令
+    return false;
 }
 
 /**

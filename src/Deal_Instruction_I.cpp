@@ -138,7 +138,6 @@ MachineCode I_FormatInstruction(const std::string& mnemonic,
     //    形式：op rt, rs, imm
     
     else {
-
         if (!op1.empty() && !op2.empty() && !op3.empty()) {
 
             std::unordered_map<std::string, int> op{
@@ -211,7 +210,7 @@ MachineCode I_FormatInstruction(const std::string& mnemonic,
                 SetImmediate(machine_code, toNumber(op2));
 
                 if (mnemonic[0] == 'B')
-                    std::cout<< "Immediate value in branch instruction.";
+                    std::cout<< "Immediate value in branch instruction.\n";
 
             } else if (isSymbol(op2)) {
 
@@ -235,17 +234,21 @@ MachineCode I_FormatInstruction(const std::string& mnemonic,
 
 /*
  * 判断机器码是否为 I 格式：
- *   branch 的 op 特殊处理
  */
 bool isI_Format(MachineCode machine_code) {
     int op = machine_code >> 26;
 
-    if (op >> 3 == 1) return true;  // 0b001xxx → I format
+    // 1. 算术/逻辑立即数指令: 0b001xxx (8 ~ 15)
+    // 包括: addi, addiu, slti, sltiu, andi, ori, xori, lui
+    if ((op >> 3) == 1) return true;
 
-    else if (op == 0b100011 || op == 0b101011 || op == 0b000100 ||
-             op == 0b000101 || op == 0b000001 || op == 0b000111 ||
-             op == 0b000110)
-        return true;
+    // 2. 分支指令 (Branch): 0b0001xx (4 ~ 7) 和 0b000001 (1)
+    // 包括: beq, bne, blez, bgtz, 以及 REGIMM 类 (bltz, bgez, bltzal, bgezal)
+    if (op == 0b000001 || (op >> 2) == 1) return true;
+
+    // 3. 访存指令 (Load/Store): 0b10xxxx (32 ~ 47)
+    // 包括: lb, lh, lw, lbu, lhu, sb, sh, sw 等
+    if ((op >> 4) == 0b10) return true;
 
     return false;
 }
