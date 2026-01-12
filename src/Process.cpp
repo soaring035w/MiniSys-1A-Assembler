@@ -34,7 +34,6 @@ bool AssemblerCore::ProcessTextSegment(InstructionList& instruction_list,
             // 返回的 assembly 是去除了 Label 和注释后的纯汇编语句（如 "add $t0, $t1, $t2"）
             std::string assembly = ExtractLabelAndStripComment(current_address, instruction.assembly, symbol_map);
             assembly = toUppercase(assembly); // 统一转大写，实现大小写不敏感
-
             instruction.address = current_address; // 记录指令的当前 PC 地址
 
             // 2. 解析指令
@@ -127,7 +126,7 @@ bool AssemblerCore::ResolveSymbols(UnsolvedSymbolMap& unsolved_symbol_map,
         for (const auto& ref : references) {
             try {
                 current_instruction_ptr = ref.instruction;
-                unsigned inst_addr = current_instruction_ptr->address; // 当前指令的地址（PC）
+                unsigned inst_addr = current_instruction_ptr->address; // 引用了该符号的指令地址
                 MachineCode& machine_code = *ref.machine_code_handle;  // 指向机器码的引用
 
                 // 根据指令格式回填不同的字段

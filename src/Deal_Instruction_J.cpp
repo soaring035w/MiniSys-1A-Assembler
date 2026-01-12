@@ -6,8 +6,6 @@
  * 包含指令：
  *   J   label/imm
  *   JAL label/imm
- *
- * 注意：正则只匹配助记符，不匹配参数。
  */
 std::regex J_format_regex("^(j|jal)", std::regex::icase);
 
@@ -34,7 +32,7 @@ MachineCode J_FormatInstruction(const std::string& mnemonic,
 
     MachineCode& machine_code = *machine_code_it;
 
-    // 首先判断是否确实为 J 格式
+    // 首先判断是否为 J 格式指令
     if (isJ_Format(assembly)) {
         machine_code = 0;  // 重置机器码
 
@@ -46,7 +44,6 @@ MachineCode J_FormatInstruction(const std::string& mnemonic,
          * J / JAL 语法格式：
          *     J   target
          *     JAL target
-         *
          * target 为数字 或 标签，且不能再有多余操作数
          */
         if ((isNumber(op1) || isSymbol(op1)) && op2.empty() && op3.empty()) {
@@ -66,7 +63,6 @@ MachineCode J_FormatInstruction(const std::string& mnemonic,
              */
             if (isNumber(op1)) {
                 SetAddress(machine_code, toNumber(op1));
-
                 std::cout<< "You are using an immediate value in jump instruction, ";
             } else {
                 // 符号地址需第二遍回填
@@ -101,7 +97,7 @@ MachineCode J_FormatInstruction(const std::string& mnemonic,
  * JAL (000011)
  */
 bool isJ_Format(MachineCode machine_code) {
-    int op = machine_code >> 26;
+    int op = machine_code >> 26; // 取出 OP 字段
     return op == 0b000010 || op == 0b000011;
 }
 

@@ -40,7 +40,7 @@ class OperandError : public std::runtime_error {
 
 class TooManyOperand : public OperandError {
    public:
-    // 操作数过多（如 add 只允许三个参数）
+    // 操作数过多
     explicit TooManyOperand(const std::string &mnemonic)
         : OperandError(mnemonic, "Too mamy operands"){};
 };

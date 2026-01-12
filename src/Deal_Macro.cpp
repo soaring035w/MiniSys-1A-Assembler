@@ -104,7 +104,7 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                     // 新增一条 machine_code，用于后续 ORI
                     MachineCodeIt new_handel = NewMachineCode(*cur_instruction);
 
-                    // 第一个 machine_code_it 被复位到第一条指令上
+                    // machine_code_it 放到当前指令对应的第一条 machine_code
                     machine_code_it = cur_instruction->machine_code.begin();
 
                     // 高 16 bit
@@ -215,10 +215,7 @@ MachineCode Macro_FormatInstruction(const std::string& mnemonic,
                             machine_code_it,
                             cur_instruction);
     }
-
-    
-    // ⑤ 不支持的宏指令
-    
+    // 不支持的宏指令
     else {
     err:
         if (isMacro_Format(assembly))

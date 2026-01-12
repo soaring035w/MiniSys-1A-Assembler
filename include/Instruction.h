@@ -29,7 +29,7 @@ struct Instruction {
 /*
  * SymbolRef 用于记录指令中“引用符号”的位置
  *
- * machine_code_handle：指向 machine_code 中需要回填的位置
+ * machine_code_handle：指向 machine_code 中需要回填的机器码
  * instruction：该引用符号属于哪条 Instruction
  */
 struct SymbolRef {
@@ -44,7 +44,7 @@ using InstructionList = std::vector<Instruction>;
  *      key   = 符号名（如 Label）
  *      value = 所有引用该符号的 SymbolRef 列表
  *
- * 用于解决前向引用（第二遍修正）
+ * 用于解决前向引用，第二遍扫描进行符号回填时使用。
  */
 using UnsolvedSymbolMap =
     std::unordered_map<std::string, std::vector<SymbolRef>>;
@@ -70,11 +70,11 @@ MachineCodeIt NewMachineCode(Instruction& i);
 #include "Deal_Instruction_R.h"
 
 /*
- * 以下函数用于向一个 32-bit machine_code 中写入对应字段。
+ * 下面的函数用于向一个 32-bit machine_code 中写入对应字段。
  * 每个函数都负责：
  *    - 检查数值范围是否合法
  *    - 清空 machine_code 对应 bit 位
- *    - 写入新的值（使用左移和按位或）
+ *    - 写入新的值
  */
 void SetOP(MachineCode& machine_code, unsigned OP);
 void SetRS(MachineCode& machine_code, unsigned RS);

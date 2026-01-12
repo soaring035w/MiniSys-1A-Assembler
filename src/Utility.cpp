@@ -3,7 +3,6 @@
 /*
  * toUppercase
  * 将字符串中所有 a~z 转为 A~Z。
- * 只处理 ASCII 范围，效率高。
  */
 std::string toUppercase(std::string str) {
     for (auto& c : str) {

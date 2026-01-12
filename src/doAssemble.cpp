@@ -41,7 +41,7 @@ bool handleSegmentDirective(const std::string& input,
                 Data d;
                 d.file = path; d.line = line; d.assembly = input; 
                 d.address = 0; d.done = true; // 标记已完成，后续Pass不再解析
-                d.raw_data.assign(size_val, 0); 
+                d.raw_data.assign(size_val, 0);
                 data_list.push_back(d);
             } else {
                 // 指令段必须 4 字节（32位）对齐
@@ -78,7 +78,7 @@ int doAssemble(const std::string &input_path, const std::string &output_dir) {
 
     InstructionList instruction_list; // 储存得到的指令
     DataList data_list;               // 储存得到的数据
-    SegmentState current_state = SegmentState::Global;
+    SegmentState current_state = SegmentState::Global; // 从全局状态开始
     std::string current_line; // 当前处理到的行
     int line_counter = 0; // 当前行号计数器
 
@@ -87,7 +87,6 @@ int doAssemble(const std::string &input_path, const std::string &output_dir) {
         while (std::getline(infile, current_line)) {
             line_counter++;
             
-            // 去除注释和前后空白字符
             std::string clean_line = KillComment(current_line);
             if (clean_line.empty() || clean_line.find_first_not_of(" \t\r\n") == std::string::npos) {
                 continue; // 跳过空行

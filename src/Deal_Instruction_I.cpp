@@ -25,7 +25,7 @@ std::regex I_format_regex(
  *   unsolved_symbol_map：未解决符号表（用于回填）
  *   machine_code_it：当前指令 machine_code 的迭代器
  *
- * 主要处理四类 I 指令：
+ * 主要处理四类指令：
  *   1. COP0（MFC0 / MTC0）
  *   2. load/store 形式（LW rt, offset(rs)）
  *   3. 普通三操作数 I 指令（ADDI/ORI/ANDI/...）
@@ -35,7 +35,7 @@ MachineCode I_FormatInstruction(const std::string& mnemonic,
                                 const std::string& assembly,
                                 UnsolvedSymbolMap& unsolved_symbol_map,
                                 MachineCodeIt machine_code_it,
-                                Instruction* cur_instruction) {   // 当前指令指针
+                                Instruction* cur_instruction) {
 
     MachineCode& machine_code = *machine_code_it;
     machine_code = 0;  // 初始化
@@ -169,6 +169,7 @@ MachineCode I_FormatInstruction(const std::string& mnemonic,
                         std::cout<<("Immediate value in branch instruction.");
                     }
 
+                // 如果是符号，需要加入未解决符号表
                 } else if (isSymbol(op3)) {
                     SetImmediate(machine_code, 0);
                     unsolved_symbol_map[op3].push_back(

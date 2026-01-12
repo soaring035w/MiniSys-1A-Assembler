@@ -1,9 +1,9 @@
 #pragma once
 
 /*
- * 字符串工具模块（StringOperate）
+ * 工具模块
  *
- * 本文件包含多个与解析汇编字符串相关的重要函数：
+ * 包含多个与解析汇编字符串相关的重要函数：
  *
  *  - toUppercase            将字符串转为大写
  *  - isNumber               判断是否为合法数字（支持 0x 十六进制）
@@ -13,8 +13,7 @@
  *  - toUNumber              将字符串转换为无符号整数
  *  - isSymbol               判断字符串是否为符号（标签）
  *  - isMemory               判断是否为 offset(base) 格式的内存操作
- *
- * 这些函数是汇编器“词法层”最重要的支持模块。
+ * 这些函数在汇编指令解析和处理过程中确保输入的合法性和正确转换
  */
 
 std::string toUppercase(std::string str);

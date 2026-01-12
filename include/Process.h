@@ -23,22 +23,26 @@ public:
 
 private:
     // 内部状态
-    unsigned int current_address;
-    bool has_error;
-    const Instruction* current_instruction_ptr = nullptr; // 用于错误报告
+    unsigned int current_address; // 当前地址指针
+    bool has_error; // 是否发生错误
+    const Instruction* current_instruction_ptr = nullptr; // 当前处理的指令指针
 
     // 辅助函数
-    std::string ExtractLabelAndStripComment(unsigned int address, 
-                                            const std::string& assembly, 
+    // 提取标签并去除注释
+    std::string ExtractLabelAndStripComment(unsigned int address,
+                                            const std::string& assembly,
                                             SymbolMap& symbol_map);
     
+    // 分发指令和数据处理
     void DispatchInstruction(const std::string& assembly, 
                              Instruction& instruction,
                              UnsolvedSymbolMap& unsolved_symbol_map);
-                             
+    
     void DispatchData(const std::string& assembly, Data& data);
 
     // 工具函数
+    // 检查是否为分支指令
     bool IsBranchOpcode(int op) const;
+    // 记录错误信息
     void LogError(const std::string& msg, const std::string& context = "");
 };

@@ -12,7 +12,7 @@
  *   - 移位 SLL SRL SRA SLLV ...
  *   - 乘除 MULT DIV
  *   - 跳转 JR JALR
- *   - 系统 BREAK SYSCALL
+ *   - 系统 BREAK SYSCALL ERET
  */
 
 extern std::regex R_format_regex;

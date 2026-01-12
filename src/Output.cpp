@@ -88,9 +88,7 @@ void OutputDataSegment(std::ostream& out,
 void OutputDetails(InstructionList instruction_list, DataList data_list,
                  std::ostream& out) {
 
-    // ==============================
     // Code Segment 输出
-    // ==============================
     out << "Code Segment\n          Machine code\n"
         << "Offset    hex       bin                               \tassembly\n";
 
@@ -116,9 +114,7 @@ void OutputDetails(InstructionList instruction_list, DataList data_list,
         }
     }
 
-    // ==============================
     // Data Segment 输出
-    // ==============================
     out << "\nData Segment\n          Raw data\n"
         << "Offset    hex bin     \tassembly\n";
 

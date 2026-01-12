@@ -13,7 +13,6 @@
  *   - 系统：break syscall eret
  *   - HI/LO 相关：mfhi mflo mthi mtlo
  *
- * 注意：正则只检查助记符，不处理参数。
  */
 std::regex R_format_regex(
     "^(addu?|subu?|and|[xn]?or|sltu?|s(?:ll|rl|ra)v?|jr|multu?|divu?|m[tf]hi|"
@@ -48,7 +47,7 @@ MachineCode R_FormatInstruction(const std::string& mnemonic,
     std::string op1, op2, op3;
     GetOperand(assembly, op1, op2, op3);
 
-    // R 型基本规定：OP 字段 = 0（除 ERET）
+    // R 型中OP 字段 = 0（除 ERET、MFC0、MTC0）
     SetOP(machine_code, 0);
 
     
@@ -75,11 +74,11 @@ MachineCode R_FormatInstruction(const std::string& mnemonic,
         auto it2 = func2.find(mnemonic);
 
         /*
-         * 一、-1 三寄存器常规算术/逻辑类
+         *   三寄存器常规算术/逻辑类
          *
          *   rd = op1
          *   rs = op2
-         *   rt = op3       ← 但是对 SLLV/SRLV/SRAV，需要交换 op2/op3
+         *   rt = op3       ← 对于SLLV/SRLV/SRAV，需要交换 op2/op3
          */
         if (it1 != func1.end()) {
 
@@ -96,7 +95,7 @@ MachineCode R_FormatInstruction(const std::string& mnemonic,
         }
 
         /*
-         * 一、-2 固定移位：sll / srl / sra
+         * 固定移位：sll / srl / sra
          *
          * 格式：
          *   sll rd, rt, shamt
@@ -222,7 +221,7 @@ MachineCode R_FormatInstruction(const std::string& mnemonic,
     }
 
     
-    // ⑤ 其他情况均视为错误
+    // 其他情况均视为错误
     
     else {
     err:

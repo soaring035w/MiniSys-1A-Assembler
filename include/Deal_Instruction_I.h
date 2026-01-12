@@ -9,7 +9,7 @@
  *
  * I 格式结构（MIPS）：
  *   31-26 | 25-21 | 20-16 | 15-0
- *     OP  |   RS  |   RT  | Immediate
+ *     OP  |   RS  |   RT  | Immediate/offset
  */
 
 extern std::regex I_format_regex;

@@ -7,7 +7,6 @@
  *   31-26 | 25-0
  *     OP  | Address
  *
- * 典型指令：
  *   J   addr
  *   JAL addr
  */
