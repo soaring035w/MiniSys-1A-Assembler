@@ -165,7 +165,7 @@ MachineCode I_FormatInstruction(const std::string& mnemonic,
                     SetImmediate(machine_code, toNumber(op3));
 
                     if (mnemonic.front() == 'B') {
-                        std::cout<<("Immediate value in branch instruction.");
+                        std::cout<<("Immediate value in branch instruction.\n");
                     }
 
                 // 如果是符号，需要加入未解决符号表
