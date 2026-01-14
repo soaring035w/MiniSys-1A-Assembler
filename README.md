@@ -9,7 +9,7 @@ mingw32-make --version # Windows查看make版本
 
 如果能打印出下面的东西，说明不需要再进行下载和配置环境：
 
-![image.png](./u_sources/assets/image.png)
+![image.png](./assets/image.png)
 
 如果报错 “不是内部或外部命令”，需要进行配置（**PS：我的mingw32-make在bin中改名为了make，正常情况下是用mingw32-make**）
 
@@ -19,7 +19,7 @@ mingw32-make --version # Windows查看make版本
 
 选择合适的版本，Windows一般下这个：
 
-![image.png](./u_sources/assets/image%201.png)
+![image.png](./assets/image%201.png)
 
 下好之后随便解压到一个喜欢的目录，然后把里面的**bin文件夹路径**添加到**环境变量中的path**就行
 
@@ -29,11 +29,11 @@ mingw32-make --version # Windows查看make版本
 
 进入Path:
 
-![image.png](./u_sources/assets/image%202.png)
+![image.png](./assets/image%202.png)
 
 点击新建，将D:\Work_Software\mingw64\bin复制进去，**然后点击确定保存**
 
-![image.png](./u_sources/assets/image%203.png)
+![image.png](./assets/image%203.png)
 
 再次测试`g++ --version`和`mingw32-make --version`，应该就能正常打印了
 
@@ -41,7 +41,7 @@ mingw32-make --version # Windows查看make版本
 
 在项目根文件夹（`/MiniSys-1A-Assembler`）下右键打开powershell，使用`mingw32-make`命令进行编译：
 
-![image.png](./u_sources/assets/image%204.png)
+![image.png](./assets/image%204.png)
 
 编译成功，汇编器的exe文件在根文件夹的`/build/bin/`中，`mas.exe`就是汇编器
 
@@ -61,6 +61,6 @@ mingw32-make rebuild # 等于mingw32-make clean all，先清除再重新编译
 
 使用汇编器：
 
-![image.png](./u_sources/assets/image%205.png)
+![image.png](./assets/image%205.png)
 
 最后的结果会写入根目录下的dmem32.coe、prgmip32.coe和details.txt
